@@ -1,0 +1,50 @@
+#!/usr/bin/env python
+
+import typer
+import psycopg2
+import pandas as pd
+
+from typing import List
+from typing import Optional
+
+app = typer.Typer()
+
+@app.command()
+def import_materials(input_file:str, dbname:str = None, host:str = None, port:str = None, ignore_column: Optional[List[str]] = typer.Option(None)):
+    r"""
+    Import the materials stored in `input_file` a postgres database.
+    :param input_file: the name of the input file.
+    :param dbname: the name of the database.
+    :param host: the host address of the database.
+    :param port: the port of the database.
+    :param ignore_column: a column name to ignore.
+    
+    :return: None
+    """
+
+    db_data = []
+    if dbname is not None:
+        db_data.append(f"dbname={dbname}")
+    if host is not None:
+        db_data.append(f"host={host}")
+    if port is not None:
+        db_data.append(f"port={port}")
+
+    with psycopg2.connect(" ".join(db_data)) as conn:
+        df = pd.read_csv(input_file)
+        headers = list(df.columns.values)
+        if ignore_column:
+            headers = [item for item in headers if item not in ignore_column]
+        sql = f"insert into material ({','.join(headers)}) values ({','.join(['%s']*len(headers))})"
+        
+        with conn.cursor() as cursor:
+            for index, row in df.iterrows():
+                data = tuple(row[header] for header in headers)
+                cursor.execute(sql, data)
+
+def main():
+    app()
+
+
+if __name__ == "__main__":
+    main()
